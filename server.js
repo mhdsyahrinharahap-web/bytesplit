@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
+const pkg = require('./package.json');
 const { DownloadManager } = require('./core/manager');
 
 const HOST = '127.0.0.1';
@@ -22,19 +23,41 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
+const FALLBACK_DOWNLOADS_DIR = path.join(os.homedir(), 'Downloads');
+
 const settings = {
-  defaultOutputDir: path.join(os.homedir(), 'Downloads'),
+  defaultOutputDir: FALLBACK_DOWNLOADS_DIR,
   speedLimitBps: 0,
 };
 
+async function isWritableDirectory(dirPath) {
+  try {
+    await fs.mkdir(dirPath, { recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function loadSettings() {
   await fs.mkdir(DATA_DIR, { recursive: true });
+  settings.defaultOutputDir = FALLBACK_DOWNLOADS_DIR;
+  let needsRewrite = false;
+
   try {
     const raw = await fs.readFile(SETTINGS_FILE, 'utf8');
     const parsed = JSON.parse(raw);
+
     if (typeof parsed.defaultOutputDir === 'string' && parsed.defaultOutputDir.trim()) {
-      settings.defaultOutputDir = parsed.defaultOutputDir.trim();
+      const candidate = parsed.defaultOutputDir.trim();
+      if (await isWritableDirectory(candidate)) {
+        settings.defaultOutputDir = candidate;
+      } else {
+        console.warn(`Folder tersimpan tidak dapat diakses (${candidate}), dialihkan ke ${FALLBACK_DOWNLOADS_DIR}`);
+        needsRewrite = true;
+      }
     }
+
     if (typeof parsed.speedLimitBps === 'number' && parsed.speedLimitBps >= 0) {
       settings.speedLimitBps = parsed.speedLimitBps;
     }
@@ -42,6 +65,11 @@ async function loadSettings() {
     if (err.code !== 'ENOENT') {
       console.error('Gagal membaca settings.json:', err.message);
     }
+  }
+
+  await fs.mkdir(settings.defaultOutputDir, { recursive: true });
+  if (needsRewrite) {
+    await saveSettings();
   }
 }
 
@@ -204,6 +232,17 @@ async function main() {
           tasks: manager.getTasks(),
           defaultOutputDir: settings.defaultOutputDir,
           speedLimitBps: settings.speedLimitBps,
+          clipboardMonitor: false,
+        });
+      }
+
+      if (req.method === 'GET' && pathname === '/api/about') {
+        return sendJson(res, 200, {
+          name: 'ByteSplit',
+          version: `v${pkg.version}`,
+          about:
+            'Aplikasi multi-connection HTTP/HTTPS download manager untuk Windows yang memecah file menjadi beberapa segmen paralel dan mengelompokkan hasil unduhan ke folder kategori otomatis.',
+          developer: 'Muhammad Syahrin Harahap',
         });
       }
 
@@ -212,13 +251,24 @@ async function main() {
         if (!body || typeof body.url !== 'string' || !body.url.trim()) {
           return sendJson(res, 400, { ok: false, error: 'URL unduhan wajib diisi.' });
         }
-        const outputDir =
+
+        const requestedDir =
           typeof body.outputDir === 'string' && body.outputDir.trim()
             ? body.outputDir.trim()
             : settings.defaultOutputDir;
 
+        const outputDir = (await isWritableDirectory(requestedDir))
+          ? requestedDir
+          : settings.defaultOutputDir;
+
+        const filename =
+          typeof body.filename === 'string' && body.filename.trim()
+            ? path.basename(body.filename.trim())
+            : '';
+
         const task = manager.addDownload({
           url: body.url.trim(),
+          filename,
           outputDir,
           connections: Number(body.connections) || 8,
           autoCategorize: body.autoCategorize !== false,
@@ -246,7 +296,7 @@ async function main() {
         return sendJson(res, 200, { ok: true, path: chosen });
       }
 
-      const taskMatch = pathname.match(/^\/api\/downloads\/([^/]+)(?:\/(pause|resume|cancel|open|folder))?$/);
+      const taskMatch = pathname.match(/^\/api\/downloads\/([^/]+)(?:\/(pause|resume|cancel|refresh|open|folder))?$/);
       if (taskMatch) {
         let id;
         try {
@@ -271,6 +321,15 @@ async function main() {
         if (req.method === 'POST' && action === 'cancel') {
           await manager.cancelDownload(id);
           return sendJson(res, 200, { ok: true });
+        }
+        if (req.method === 'POST' && action === 'refresh') {
+          const body = await readJsonBody(req);
+          const newUrl = typeof body.newUrl === 'string' ? body.newUrl.trim() : '';
+          if (!newUrl) {
+            return sendJson(res, 400, { ok: false, error: 'URL baru wajib diisi.' });
+          }
+          const task = manager.refreshLink(id, newUrl);
+          return sendJson(res, 200, { ok: true, task });
         }
         if (req.method === 'POST' && (action === 'open' || action === 'folder')) {
           const task = manager.getTasks().find((t) => t.id === id);
@@ -303,6 +362,7 @@ async function main() {
       const addr = server.address();
       const url = `http://${HOST}:${addr.port}`;
       console.log(`ByteSplit berjalan di ${url}`);
+      console.log(`Folder unduhan aktif: ${settings.defaultOutputDir}`);
       console.log('Tekan Ctrl+C di terminal untuk berhenti (unduhan aktif otomatis dijeda).');
       await openInAppWindow(url);
     });

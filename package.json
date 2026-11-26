@@ -1,8 +1,8 @@
 {
   "name": "bytesplit",
-  "version": "1.0.0",
-  "description": "Multi-connection HTTP/HTTPS download manager with automatic category folders.",
-  "author": "ByteSplit",
+  "version": "1.1.0",
+  "description": "ByteSplit",
+  "author": "Muhammad Syahrin Harahap",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -16,22 +16,29 @@
   "build": {
     "appId": "com.bytesplit.app",
     "productName": "ByteSplit",
+    "icon": "build/icon.png",
     "files": [
       "main.js",
       "preload.js",
       "core/**/*",
       "renderer/**/*",
+      "build/**/*",
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

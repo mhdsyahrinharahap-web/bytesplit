@@ -12,7 +12,7 @@ const MAX_NETWORK_RETRIES = 4;
 const MAX_RATE_LIMIT_RETRIES = 8;
 const DEFAULT_TIMEOUT_MS = 20000;
 const THROTTLED_TIMEOUT_MS = 60000;
-const USER_AGENT = 'ByteSplit/1.0';
+const USER_AGENT = 'ByteSplit/1.1';
 
 function buildChunks(totalSize, requestedConnections, supportsRange) {
   if (!supportsRange || totalSize < MIN_SPLIT_SIZE || requestedConnections <= 1) {
@@ -350,7 +350,14 @@ function startTask(task, { speedLimiter, onProgress, onStateChange }) {
         throw new Error('Folder tujuan penyimpanan tidak valid.');
       }
 
-      if (!task.finalUrl || !task.destPath) {
+      const isRefreshingExisting =
+        !task.finalUrl &&
+        Boolean(task.destPath) &&
+        Boolean(task.tempPath) &&
+        Array.isArray(task.chunks) &&
+        task.chunks.length > 0;
+
+      if (isRefreshingExisting) {
         task.status = 'probing';
         notify(true);
 
@@ -359,7 +366,34 @@ function startTask(task, { speedLimiter, onProgress, onStateChange }) {
           throw new Error('Operasi dihentikan.');
         }
 
-        const category = detectCategory(meta.fileName);
+        if (task.totalSize > 0 && meta.totalSize > 0 && meta.totalSize !== task.totalSize) {
+          throw new Error('Ukuran file pada link baru berbeda dengan unduhan sebelumnya.');
+        }
+
+        task.finalUrl = meta.finalUrl;
+        task.supportsRange = meta.supportsRange;
+        await fs.mkdir(task.outputDir, { recursive: true });
+      } else if (!task.finalUrl || !task.destPath) {
+        task.status = 'probing';
+        notify(true);
+
+        const meta = await probe(task.url);
+        if (controller.signal.aborted) {
+          throw new Error('Operasi dihentikan.');
+        }
+
+        let targetFileName = meta.fileName;
+        if (task.customFileName) {
+          const serverExt = path.extname(meta.fileName);
+          const customExt = path.extname(task.customFileName);
+          targetFileName =
+            customExt || !serverExt ? task.customFileName : `${task.customFileName}${serverExt}`;
+        }
+
+        let category = detectCategory(targetFileName);
+        if (category.id === 'general') {
+          category = detectCategory(meta.fileName);
+        }
         task.category = category.id;
 
         if (task.autoCategorize !== false) {
@@ -369,7 +403,7 @@ function startTask(task, { speedLimiter, onProgress, onStateChange }) {
 
         await fs.mkdir(task.outputDir, { recursive: true });
 
-        const uniqueDest = await resolveUniqueFilePath(task.outputDir, meta.fileName);
+        const uniqueDest = await resolveUniqueFilePath(task.outputDir, targetFileName);
         task.finalUrl = meta.finalUrl;
         task.fileName = path.basename(uniqueDest);
         task.destPath = uniqueDest;

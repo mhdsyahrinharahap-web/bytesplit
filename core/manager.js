@@ -6,6 +6,56 @@ const { startTask } = require('./engine');
 const { SpeedLimiter } = require('./limiter');
 const { validateHttpUrl } = require('./prober');
 
+const CATEGORY_EXT_MAP = {
+  Compressed: new Set([
+    '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz',
+    '.tgz', '.zst', '.cab', '.arj', '.lzh', '.ace', '.z',
+  ]),
+  Documents: new Set([
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.txt', '.rtf', '.odt', '.ods', '.odp', '.csv', '.md',
+    '.epub', '.djvu', '.chm',
+  ]),
+  Music: new Set([
+    '.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma',
+    '.opus', '.aiff', '.mid', '.midi',
+  ]),
+  Programs: new Set([
+    '.exe', '.msi', '.msix', '.apk', '.deb', '.rpm', '.dmg',
+    '.pkg', '.appimage', '.iso', '.img', '.bin', '.bat',
+    '.cmd', '.ps1', '.sh',
+  ]),
+  Video: new Set([
+    '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm',
+    '.m4v', '.mpeg', '.mpg', '.3gp', '.ts',
+  ]),
+};
+
+const CATEGORY_LABEL_MAP = {
+  compressed: 'Compressed',
+  documents: 'Documents',
+  music: 'Music',
+  programs: 'Programs',
+  video: 'Video',
+  general: 'Other',
+  other: 'Other',
+};
+
+function normalizeCategoryLabel(rawCat) {
+  if (!rawCat || typeof rawCat !== 'string') return null;
+  return CATEGORY_LABEL_MAP[rawCat.trim().toLowerCase()] || null;
+}
+
+function inferCategory(fileNameOrUrl) {
+  if (!fileNameOrUrl || typeof fileNameOrUrl !== 'string') return 'Other';
+  const clean = fileNameOrUrl.split('?')[0].split('#')[0];
+  const ext = path.extname(clean).toLowerCase();
+  for (const [category, extSet] of Object.entries(CATEGORY_EXT_MAP)) {
+    if (extSet.has(ext)) return category;
+  }
+  return 'Other';
+}
+
 class DownloadManager extends EventEmitter {
   constructor({ dataDir, defaultOutputDir }) {
     super();
@@ -61,10 +111,16 @@ class DownloadManager extends EventEmitter {
   }
 
   _snapshot(task) {
+    const resolvedName = task.fileName || 'Menghubungi server...';
+    const category =
+      normalizeCategoryLabel(task.category) ||
+      inferCategory(task.fileName || task.destPath || task.url);
+
     return {
       id: task.id,
       url: task.url,
-      fileName: task.fileName || 'Menghubungi server...',
+      fileName: resolvedName,
+      category,
       outputDir: task.outputDir,
       destPath: task.destPath,
       totalSize: task.totalSize,
@@ -97,15 +153,31 @@ class DownloadManager extends EventEmitter {
     return this.speedLimiter.bytesPerSec;
   }
 
-  addDownload({ url, outputDir, connections = 8 }) {
+  async setDefaultOutputDir(dir) {
+    if (typeof dir !== 'string' || !dir.trim()) {
+      throw new Error('Folder penyimpanan tidak valid.');
+    }
+    const resolved = path.resolve(dir.trim());
+    await fs.mkdir(resolved, { recursive: true });
+    this.defaultOutputDir = resolved;
+    return this.defaultOutputDir;
+  }
+
+  addDownload({ url, filename, fileName, outputDir, connections = 8, autoCategorize = true }) {
     const validUrl = validateHttpUrl(url);
     const conn = Math.max(1, Math.min(16, Math.floor(Number(connections) || 8)));
+    const rawCustomName = typeof fileName === 'string' ? fileName : filename;
+    const customFileName =
+      typeof rawCustomName === 'string' && rawCustomName.trim()
+        ? path.basename(rawCustomName.trim())
+        : null;
 
     const task = {
       id: crypto.randomUUID(),
       url: validUrl,
       finalUrl: null,
-      fileName: null,
+      fileName: customFileName,
+      customFileName,
       outputDir: outputDir || this.defaultOutputDir,
       destPath: null,
       tempPath: null,
@@ -113,6 +185,7 @@ class DownloadManager extends EventEmitter {
       downloaded: 0,
       supportsRange: false,
       connections: conn,
+      autoCategorize: autoCategorize !== false,
       status: 'queued',
       error: null,
       speedBps: 0,
@@ -125,6 +198,30 @@ class DownloadManager extends EventEmitter {
     this.tasks.set(task.id, task);
     this._launch(task);
     this.emit('list', this.getTasks());
+    return this._snapshot(task);
+  }
+
+  refreshLink(id, newUrl) {
+    const task = this.tasks.get(id);
+    if (!task) throw new Error('Tugas unduhan tidak ditemukan.');
+    if (task.status === 'completed') {
+      throw new Error('Unduhan sudah selesai.');
+    }
+    if (this.activeHandles.has(id)) {
+      throw new Error('Jeda unduhan terlebih dahulu sebelum memperbarui link.');
+    }
+
+    const validUrl = validateHttpUrl(newUrl);
+    task.url = validUrl;
+    task.finalUrl = null;
+    task.error = null;
+    task.speedBps = 0;
+    task.etaSec = null;
+    task.status = 'queued';
+
+    this._persist();
+    this._launch(task);
+    this.emit('update', this._snapshot(task));
     return this._snapshot(task);
   }
 

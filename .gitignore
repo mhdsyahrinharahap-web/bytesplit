@@ -2,5 +2,3 @@ node_modules/
 dist/
 data/
 downloads/
-package-lock.json
-*.log
