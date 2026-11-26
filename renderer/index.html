@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+    />
+    <title>ByteSplit</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="toolbar" role="toolbar" aria-label="Perintah utama">
+        <div class="toolbar-group">
+          <button
+            type="button"
+            id="btn-toggle-sidebar"
+            class="tool-btn tool-icon-only"
+            aria-expanded="true"
+            aria-controls="sidebar"
+            title="Tampilkan atau sembunyikan sidebar kategori"
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M2 3h12v1.5H2V3zm0 4.25h12v1.5H2v-1.5zM2 11.5h12V13H2v-1.5z"
+              />
+            </svg>
+          </button>
+
+          <button type="button" id="btn-add" class="tool-btn tool-primary" title="Tambah URL (Ctrl+N)">
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+              <path fill="currentColor" d="M7.25 2h1.5v5.25H14v1.5H8.75V14h-1.5V8.75H2v-1.5h5.25V2z" />
+            </svg>
+            <span>Tambah URL</span>
+          </button>
+        </div>
+
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        <div class="toolbar-group">
+          <button type="button" id="btn-resume" class="tool-btn" disabled>Lanjutkan</button>
+          <button type="button" id="btn-pause" class="tool-btn" disabled>Jeda</button>
+          <button type="button" id="btn-cancel" class="tool-btn" disabled>Batal</button>
+          <button type="button" id="btn-remove" class="tool-btn" disabled>Hapus</button>
+          <button type="button" id="btn-open-folder" class="tool-btn" disabled>Buka Folder</button>
+        </div>
+
+        <div class="toolbar-spacer"></div>
+
+        <div class="toolbar-group">
+          <label class="speed-box">
+            <span>Batas</span>
+            <select id="speed-limit" aria-label="Batas kecepatan global">
+              <option value="0">Tanpa batas</option>
+              <option value="524288">512 KB/s</option>
+              <option value="1048576">1 MB/s</option>
+              <option value="2097152">2 MB/s</option>
+              <option value="5242880">5 MB/s</option>
+              <option value="10485760">10 MB/s</option>
+            </select>
+          </label>
+
+          <button type="button" id="theme-toggle" class="tool-btn">Mode Gelap</button>
+        </div>
+      </header>
+
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+      <div id="workspace" class="workspace">
+        <aside id="sidebar" class="sidebar" aria-label="Kategori unduhan">
+          <div class="nav-group">
+            <div class="nav-heading">Unduhan</div>
+            <button type="button" class="nav-item is-active" data-view="all">
+              <span class="nav-label">Semua</span>
+              <span class="nav-count" id="cnt-all">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="active">
+              <span class="nav-label">Berjalan / Dijeda</span>
+              <span class="nav-count" id="cnt-active">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="completed">
+              <span class="nav-label">Selesai</span>
+              <span class="nav-count" id="cnt-completed">0</span>
+            </button>
+          </div>
+
+          <div class="nav-group">
+            <div class="nav-heading">Folder Kategori</div>
+            <button type="button" class="nav-item" data-view="cat:compressed">
+              <span class="nav-label">Compressed</span>
+              <span class="nav-count" id="cnt-compressed">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="cat:documents">
+              <span class="nav-label">Documents</span>
+              <span class="nav-count" id="cnt-documents">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="cat:music">
+              <span class="nav-label">Music</span>
+              <span class="nav-count" id="cnt-music">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="cat:programs">
+              <span class="nav-label">Programs</span>
+              <span class="nav-count" id="cnt-programs">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="cat:video">
+              <span class="nav-label">Video</span>
+              <span class="nav-count" id="cnt-video">0</span>
+            </button>
+            <button type="button" class="nav-item" data-view="cat:general">
+              <span class="nav-label">Lainnya</span>
+              <span class="nav-count" id="cnt-general">0</span>
+            </button>
+          </div>
+        </aside>
+
+        <section class="content-pane">
+          <div class="table-wrap" id="table-wrap">
+            <table class="dl-table" aria-label="Daftar unduhan">
+              <thead>
+                <tr>
+                  <th class="col-name">Nama File</th>
+                  <th class="col-size">Ukuran</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-speed">Kecepatan</th>
+                  <th class="col-eta">Sisa Waktu</th>
+                  <th class="col-conn">Koneksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+
+            <div id="table-empty" class="table-empty" hidden>
+              <p id="empty-title" class="empty-title">Belum ada unduhan</p>
+              <p id="empty-desc" class="empty-desc">
+                Klik Tambah URL atau tekan Ctrl+N. File otomatis disimpan ke folder Compressed,
+                Documents, Music, Programs, atau Video sesuai formatnya.
+              </p>
+              <button type="button" id="btn-empty-add" class="tool-btn tool-primary">
+                + Tambah URL
+              </button>
+            </div>
+          </div>
+
+          <section class="inspector" aria-label="Detail unduhan terpilih">
+            <div id="inspector-empty" class="inspector-empty">
+              Pilih salah satu baris unduhan untuk melihat lokasi penyimpanan dan progres tiap
+              koneksi.
+            </div>
+
+            <div id="inspector-content" class="inspector-content" hidden>
+              <div class="insp-header">
+                <div class="insp-title-wrap">
+                  <strong id="insp-name" class="insp-name"></strong>
+                  <span id="insp-category" class="insp-cat"></span>
+                </div>
+                <div class="insp-actions">
+                  <button type="button" id="insp-open-file" class="tool-btn" disabled>
+                    Buka File
+                  </button>
+                  <button type="button" id="insp-open-folder" class="tool-btn" disabled>
+                    Buka Folder
+                  </button>
+                </div>
+              </div>
+
+              <div class="insp-meta-grid">
+                <div class="insp-meta-row">
+                  <span class="insp-key">Disimpan di</span>
+                  <span id="insp-path" class="insp-val mono"></span>
+                </div>
+                <div class="insp-meta-row">
+                  <span class="insp-key">Sumber URL</span>
+                  <span id="insp-url" class="insp-val mono"></span>
+                </div>
+              </div>
+
+              <p id="insp-error" class="insp-error" hidden></p>
+
+              <div class="insp-chunks-wrap">
+                <div class="insp-chunks-head">
+                  <span>Progres Segmen Koneksi</span>
+                  <span id="insp-chunk-legend" class="mono"></span>
+                </div>
+                <div id="insp-chunks" class="chunk-map"></div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <footer class="statusbar">
+        <div class="status-group">
+          <span id="status-active">0 aktif</span>
+          <span class="status-divider" aria-hidden="true">|</span>
+          <span id="status-speed" class="mono">0.00 MB/s</span>
+        </div>
+
+        <button
+          type="button"
+          id="btn-default-folder"
+          class="status-folder"
+          title="Klik untuk mengganti folder dasar (subfolder kategori otomatis dibuat di dalamnya)"
+        >
+          Folder dasar: <span id="default-folder-text" class="mono">-</span>
+        </button>
+      </footer>
+    </div>
+
+    <div id="modal-backdrop" class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-head">
+          <h2 id="modal-title">Tambah Unduhan Baru</h2>
+          <button type="button" id="btn-close-modal" class="modal-close" aria-label="Tutup">
+            &times;
+          </button>
+        </div>
+
+        <form id="new-download-form" class="modal-body" novalidate>
+          <div class="form-field">
+            <label for="input-url">Alamat URL (HTTP / HTTPS)</label>
+            <div class="form-inline">
+              <input
+                type="url"
+                id="input-url"
+                placeholder="https://contoh.com/installer.exe"
+                autocomplete="off"
+                required
+              />
+              <button type="button" id="btn-paste-url" class="tool-btn">Tempel</button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="checkbox-row">
+              <input type="checkbox" id="input-auto-cat" checked />
+              <span>Otomatis arahkan ke folder kategori (Compressed, Documents, Music, Programs, Video)</span>
+            </label>
+            <div id="auto-dest-preview" class="dest-preview mono"></div>
+          </div>
+
+          <div id="custom-folder-wrap" class="form-field" hidden>
+            <label for="input-folder">Folder Tujuan Khusus</label>
+            <div class="form-inline">
+              <input type="text" id="input-folder" readonly />
+              <button type="button" id="btn-browse-folder" class="tool-btn">Pilih...</button>
+            </div>
+          </div>
+
+          <div class="form-field form-narrow">
+            <label for="input-connections">Jumlah Koneksi Paralel</label>
+            <select id="input-connections">
+              <option value="1">1 koneksi</option>
+              <option value="4">4 koneksi</option>
+              <option value="8" selected>8 koneksi</option>
+              <option value="16">16 koneksi</option>
+            </select>
+          </div>
+
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+
+          <div class="modal-foot">
+            <button type="button" id="btn-cancel-modal" class="tool-btn">Batal</button>
+            <button type="submit" id="btn-submit-download" class="tool-btn tool-primary">
+              Mulai Unduh
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="./web-bridge.js"></script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
