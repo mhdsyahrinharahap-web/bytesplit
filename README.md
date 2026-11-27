@@ -1,29 +1,43 @@
 # ByteSplit
 
-Multi-connection HTTP/HTTPS download manager untuk Windows yang memecah file menjadi beberapa segmen paralel dengan *direct offset writing* serta mengelompokkan hasil unduhan ke folder kategori secara otomatis.
+Aplikasi download manager HTTP/HTTPS native untuk Windows yang dibangun menggunakan C# (.NET 8 Windows Forms) tanpa WebView maupun Electron. ByteSplit memecah berkas menjadi beberapa segmen paralel agar proses unduhan lebih cepat sekaligus tetap ringan dipakai di laptop berspesifikasi rendah.
 
-## Fitur Utama
+Versi saat ini: `v2.0.0-beta.1` (Native Windows)
 
-- **Multi-Connection Segmented Download (1–16 Koneksi):** Membagi file berukuran besar ke beberapa segmen paralel menggunakan HTTP `Range` request untuk memaksimalkan kecepatan unduh.
-- **Direct Offset Writing & Safe Resume:** Setiap segmen ditulis langsung ke offset byte masing-masing pada berkas sementara (`.bytesplit.part`), sehingga unduhan yang dijeda atau terputus dapat dilanjutkan tanpa mengulang dari awal.
-- **Auto-Categorize Folder:** Mengelompokkan hasil unduhan secara otomatis ke subfolder `Compressed`, `Documents`, `Music`, `Programs`, dan `Video`.
-- **Pantau Clipboard Otomatis:** Mendeteksi tautan unduhan langsung yang disalin dari browser dan membuka dialog tambah unduhan secara otomatis.
-- **Refresh Expired Link:** Memperbarui URL unduhan yang kedaluwarsa tanpa kehilangan progres segmen yang sudah terunduh.
-- **System Tray & Notifikasi:** Tetap berjalan di latar belakang (*System Tray*) saat jendela ditutup ketika unduhan masih aktif, disertai notifikasi saat selesai.
-- **Pengatur Batas Kecepatan & Tema:** Mendukung pembatasan bandwidth global serta pilihan tampilan tema Terang (*Light*) dan Gelap (*Dark*).
+## Perubahan Utama di v2.0.0-beta.1
 
-## Unduh Aplikasi (Windows)
+- Migrasi penuh dari Electron ke aplikasi desktop native C# (.NET 8 Windows Forms) tanpa browser tertanam.
+- Penggunaan RAM saat diam turun menjadi sekitar 20-30 MB dengan waktu buka instan.
+- Tampilan baru bergaya Fluent Windows dengan dukungan tema Terang dan Gelap serta penyesuaian skala DPI layar.
+- Pemantau clipboard berbasis event Windows (`AddClipboardFormatListener`) dengan penggunaan CPU 0% saat diam.
 
-Buka halaman [**Releases**](https://github.com/mhdsyahrinharahap-web/bytesplit/releases) untuk mengunduh versi terbaru:
-- **Installer (`.exe`):** Instalasi standar Windows dengan pintasan Start Menu dan Desktop.
-- **Portable (`.exe`):** Langsung dijalankan tanpa perlu proses instalasi.
+## Fitur
+
+- **Unduhan Multi-Koneksi (1-16 Segmen):** Memecah file menggunakan HTTP Range request dan menulis data langsung ke offset berkas sementara (`.bytesplit.part`).
+- **Jeda dan Lanjutkan (Pause/Resume):** Status dan progres tiap segmen disimpan otomatis di `data/tasks.json`, sehingga unduhan bisa dilanjutkan kapan saja setelah aplikasi ditutup.
+- **Perbarui Link Kedaluwarsa:** Mengganti tautan unduhan yang sudah kedaluwarsa dengan tautan baru tanpa mengulang dari awal selama ukuran berkas sama.
+- **Pengelompokan Folder Otomatis:** Mengarahkan hasil unduhan ke sub-folder kategori (`Compressed`, `Documents`, `Music`, `Programs`, `Video`, atau `Other`).
+- **Pembatas Kecepatan (Speed Limiter):** Mengatur batas kecepatan unduh global (`Tanpa Batas`, `512 KB/s`, `1 MB/s`, `2 MB/s`, `5 MB/s`, atau `10 MB/s`).
+- **System Tray:** Tetap berjalan di latar belakang saat jendela ditutup ketika masih ada unduhan aktif.
+
+## Cara Menggunakan (Rilis Jadi)
+
+Unduh salah satu berkas rilis pada halaman [Releases](https://github.com/mhdsyahrinharahap-web/bytesplit/releases):
+
+1. `ByteSplit-v2.0.0-beta.1-win-x64-portable.exe`: Versi mandiri (*self-contained*), langsung bisa dijalankan di Windows 10/11 64-bit tanpa menginstal .NET Runtime tambahan.
+2. `ByteSplit-v2.0.0-beta.1-win-x64-lite.exe`: Versi ringan (*framework-dependent*), membutuhkan [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) terpasang di Windows.
 
 ## Menjalankan dari Source Code
 
-Pastikan **Node.js** (v18 atau lebih baru) dan **Git** sudah terpasang di perangkat Anda:
+### Prasyarat
 
-```bash
+- Windows 10 atau Windows 11 (64-bit)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+
+### Langkah Kompilasi
+
+```powershell
 git clone [https://github.com/mhdsyahrinharahap-web/bytesplit.git](https://github.com/mhdsyahrinharahap-web/bytesplit.git)
 cd bytesplit
-npm install
-npm start
+dotnet build -c Release
+dotnet run -c Release

@@ -1,4 +1,7 @@
-node_modules/
-dist/
+bin/
+obj/
+publish/
 data/
 downloads/
+build/icon.ico
+.vs/

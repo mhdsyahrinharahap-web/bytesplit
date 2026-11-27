@@ -1,32 +1,71 @@
-name: Build ByteSplit Windows
+name: Build ByteSplit Native Windows
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
         with:
-          node-version: 22
+          dotnet-version: '8.0.x'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Generate build/icon.ico from build/icon.png
+        shell: pwsh
+        run: |
+          if (Test-Path "build/icon.png") {
+            $pngBytes = [System.IO.File]::ReadAllBytes("build/icon.png")
+            $ms = New-Object System.IO.MemoryStream
+            $bw = New-Object System.IO.BinaryWriter($ms)
+            $bw.Write([uint16]0)
+            $bw.Write([uint16]1)
+            $bw.Write([uint16]1)
+            $bw.Write([byte]0)
+            $bw.Write([byte]0)
+            $bw.Write([byte]0)
+            $bw.Write([byte]0)
+            $bw.Write([uint16]1)
+            $bw.Write([uint16]32)
+            $bw.Write([uint32]$pngBytes.Length)
+            $bw.Write([uint32]22)
+            $bw.Write($pngBytes)
+            $bw.Flush()
+            [System.IO.File]::WriteAllBytes("build/icon.ico", $ms.ToArray())
+            $bw.Dispose()
+            $ms.Dispose()
+          }
 
-      - name: Build Windows Installer & Portable
-        run: npx electron-builder --win --publish never
+      - name: Publish Portable Single-File EXE
+        run: |
+          dotnet publish ByteSplit.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish/portable
 
-      - name: Upload .exe artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish Lightweight Framework-Dependent EXE
+        run: |
+          dotnet publish ByteSplit.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish/lite
+
+      - name: Package Release Artifacts
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "v2.0.0" }
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item "publish/portable/ByteSplit.exe" "release-assets/ByteSplit-$tag-win-x64-portable.exe"
+          Copy-Item "publish/lite/ByteSplit.exe" "release-assets/ByteSplit-$tag-win-x64-lite.exe"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ByteSplit-Windows-x64
-          path: |
-            dist/*.exe
+          files: release-assets/*
+          generate_release_notes: true

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ByteSplit</AssemblyName>
+    <RootNamespace>ByteSplit</RootNamespace>
+    <Product>ByteSplit</Product>
+    <Company>Muhammad Syahrin Harahap</Company>
+    <Authors>Muhammad Syahrin Harahap</Authors>
+    <Description>Multi-connection HTTP/HTTPS download manager native untuk Windows</Description>
+    <Version>2.0.0</Version>
+    <ApplicationIcon Condition="Exists('build\icon.ico')">build\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="build\icon.png" LogicalName="ByteSplit.icon.png" Condition="Exists('build\icon.png')" />
+  </ItemGroup>
+
+</Project>
