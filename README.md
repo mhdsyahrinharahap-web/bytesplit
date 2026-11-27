@@ -7,7 +7,7 @@ Versi saat ini: `v2.0.0-beta.1` (Native Windows)
 ## Perubahan Utama di v2.0.0-beta.1
 
 - Migrasi penuh dari Electron ke aplikasi desktop native C# (.NET 8 Windows Forms) tanpa browser tertanam.
-- Penggunaan RAM saat diam turun menjadi sekitar 20-30 MB dengan waktu buka instan.
+- Penggunaan RAM saat idle turun menjadi sekitar 20-30 MB dengan waktu buka instan.
 - Tampilan baru bergaya Fluent Windows dengan dukungan tema Terang dan Gelap serta penyesuaian skala DPI layar.
 - Pemantau clipboard berbasis event Windows (`AddClipboardFormatListener`) dengan penggunaan CPU 0% saat diam.
 
